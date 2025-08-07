@@ -1,0 +1,17 @@
+{
+    "name": "backup-supabase-storage",
+    "version": "1.0.0",
+    "main": "backup.js",
+    "scripts": {
+        "start": "node backup.js"
+    },
+    "type": "module",
+    "dependencies": {
+        "@supabase/supabase-js": "^2.53.0",
+        "adm-zip": "^0.5.16",
+        "dotenv": "^17.2.1",
+        "fs-extra": "^11.3.1",
+        "googleapis": "^155.0.0",
+        "nodemailer": "^7.0.5"
+    }
+}
