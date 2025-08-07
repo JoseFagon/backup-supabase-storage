@@ -3,7 +3,7 @@ import { PassThrough } from 'stream';
 import AdmZip from 'adm-zip';
 import dotenv from 'dotenv';
 import * as path from 'path';
-import { uploadToDrive } from './drive-upload.js';
+import { uploadToDrive } from './onedrive-upload.js';
 import { sendEmail } from './email.js';
 
 dotenv.config();
@@ -104,7 +104,7 @@ async function runBackup() {
         }
 
         const zipStream = await createZipStream(files);
-        const driveLink = await uploadToDrive(
+        const driveLink = await uploadToOneDrive(
             `backup-${new Date().toISOString().slice(0, 10)}.zip`,
             zipStream,
         );
