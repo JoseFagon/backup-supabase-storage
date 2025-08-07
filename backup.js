@@ -14,6 +14,7 @@ const supabase = createClient(
 );
 
 const BUCKET = process.env.BUCKET_NAME;
+const RETENTION_DAYS = 30;
 
 async function listAllFiles(prefix = '') {
     const files = [];
@@ -30,7 +31,7 @@ async function listAllFiles(prefix = '') {
         const fullPath = path.posix.join(prefix, item.name);
         if (item.metadata?.size !== undefined) {
             files.push(fullPath);
-        } else {
+        } else if (item.name !== '.emptyFolderPlaceholder') {
             const sub = await listAllFiles(fullPath);
             files.push(...sub);
         }
@@ -61,19 +62,62 @@ async function createZipStream(files) {
     return passThrough;
 }
 
+async function cleanOldFiles() {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - RETENTION_DAYS);
+
+    const allFiles = await listAllFiles();
+
+    const filesToDelete = allFiles.filter((filePath) => {
+        const timestamp = parseInt(filePath.split('/').pop().split('-')[0]);
+        if (isNaN(timestamp)) return false;
+
+        const fileDate = new Date(timestamp);
+        return fileDate < cutoffDate;
+    });
+
+    if (filesToDelete.length > 0) {
+        const { error } = await supabase.storage
+            .from(BUCKET)
+            .remove(filesToDelete);
+
+        if (error) {
+            console.error('Erro ao limpar arquivos:', error.message);
+        } else {
+            console.log(
+                `♻️ Limpeza mensal: ${filesToDelete.length} arquivos antigos removidos`,
+            );
+        }
+    } else {
+        console.log('✅ Nenhum arquivo antigo para limpar');
+    }
+}
+
 async function runBackup() {
-    console.log(`📥 Iniciando backup do bucket '${BUCKET}'...`);
-    const files = await listAllFiles();
+    try {
+        console.log(`📥 Iniciando backup do bucket '${BUCKET}'...`);
+        const files = await listAllFiles();
 
-    const zipStream = await createZipStream(files);
+        if (files.length === 0) {
+            console.log('⚠️ Nenhum arquivo encontrado para backup');
+            return;
+        }
 
-    const driveLink = await uploadToDrive(
-        `backup-${new Date().toISOString().slice(0, 10)}.zip`,
-        zipStream,
-    );
+        const zipStream = await createZipStream(files);
+        const driveLink = await uploadToDrive(
+            `backup-${new Date().toISOString().slice(0, 10)}.zip`,
+            zipStream,
+        );
 
-    await sendEmail(driveLink);
-    console.log('✅ Backup enviado diretamente para o Drive.');
+        if (new Date().getDate() === 1) {
+            await cleanOldFiles();
+        }
+
+        await sendEmail(driveLink);
+        console.log('✅ Backup concluído e limpeza mensal verificada');
+    } catch (error) {
+        console.error('❌ Erro no processo de backup:', error.message);
+    }
 }
 
 runBackup();
