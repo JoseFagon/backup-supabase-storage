@@ -1,11 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
-import { PassThrough } from 'stream';
 import AdmZip from 'adm-zip';
 import dotenv from 'dotenv';
 import * as path from 'path';
 import { sendEmail } from './email.js';
 import { uploadToOneDrive } from './onedrive-upload.js';
-import * as fs from 'fs';
 
 dotenv.config();
 
