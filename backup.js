@@ -3,8 +3,9 @@ import { PassThrough } from 'stream';
 import AdmZip from 'adm-zip';
 import dotenv from 'dotenv';
 import * as path from 'path';
-import { uploadToDrive } from './onedrive-upload.js';
 import { sendEmail } from './email.js';
+import { uploadToOneDrive } from './onedrive-upload.js';
+import * as fs from 'fs';
 
 dotenv.config();
 
@@ -40,13 +41,11 @@ async function listAllFiles(prefix = '') {
     return files;
 }
 
-async function createZipStream(files) {
+async function createZipBuffer(files) {
     const zip = new AdmZip();
-    const passThrough = new PassThrough();
 
     for (const filePath of files) {
         const { data } = await supabase.storage.from(BUCKET).download(filePath);
-
         if (data) {
             const buffer = Buffer.from(await data.arrayBuffer());
             zip.addFile(filePath, buffer);
@@ -54,12 +53,7 @@ async function createZipStream(files) {
         }
     }
 
-    zip.toBuffer((buffer) => {
-        passThrough.write(buffer);
-        passThrough.end();
-    });
-
-    return passThrough;
+    return zip.toBuffer();
 }
 
 async function cleanOldFiles() {
@@ -103,18 +97,17 @@ async function runBackup() {
             return;
         }
 
-        const zipStream = await createZipStream(files);
-        const driveLink = await uploadToOneDrive(
-            `backup-${new Date().toISOString().slice(0, 10)}.zip`,
-            zipStream,
-        );
+        const zipBuffer = await createZipBuffer(files);
+        const backupName = `backup-${new Date().toISOString().slice(0, 10)}.zip`;
+        
+        const drivePath = await uploadToOneDrive(backupName, zipBuffer);
 
         if (new Date().getDate() === 1) {
             await cleanOldFiles();
         }
 
-        await sendEmail(driveLink);
-        console.log('✅ Backup concluído e limpeza mensal verificada');
+        await sendEmail(drivePath);
+        console.log('✅ Backup concluído com sucesso!');
     } catch (error) {
         console.error('❌ Erro no processo de backup:', error.message);
     }

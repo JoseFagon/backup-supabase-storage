@@ -1,47 +1,46 @@
-import { Client } from '@microsoft/microsoft-graph-client';
-import 'isomorphic-fetch';
-import dotenv from 'dotenv';
-import fetch from 'node-fetch';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
 
-dotenv.config();
+export async function uploadToOneDrive(fileName, buffer) {
+    const userProfile = os.homedir();
+    
+    let oneDrivePath;
+    
+    oneDrivePath = path.join(userProfile, 'OneDrive');
+    
+    if (!fs.existsSync(oneDrivePath)) {
+        oneDrivePath = path.join(userProfile, 'OneDrive - Fagon');
+    }
+    
+    if (!fs.existsSync(oneDrivePath)) {
+        oneDrivePath = path.join(userProfile, 'Documents', 'OneDrive');
+    }
 
-async function getAccessToken() {
-    const response = await fetch(`https://login.microsoftonline.com/${process.env.MS_TENANT_ID}/oauth2/v2.0/token`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-            client_id: process.env.MS_CLIENT_ID,
-            scope: 'https://graph.microsoft.com/.default',
-            client_secret: process.env.MS_CLIENT_SECRET,
-            grant_type: 'client_credentials',
-        }),
-    });
+    if (!fs.existsSync(oneDrivePath)) {
+        throw new Error(`Pasta do OneDrive não encontrada. Verificamos em:
+            - ${path.join(userProfile, 'OneDrive')}
+            - ${path.join(userProfile, 'OneDrive - Fagon')}
+            - ${path.join(userProfile, 'Documents', 'OneDrive')}
+            Verifique se o OneDrive está instalado e sincronizando.`
+        );
+    }
 
-    const data = await response.json();
-    if (data.error) throw new Error(`Erro ao obter token: ${data.error_description}`);
-    return data.access_token;
-}
+    const backupsFolder = path.join(oneDrivePath, 'Backups');
+    
+    if (!fs.existsSync(backupsFolder)) {
+        fs.mkdirSync(backupsFolder);
+        console.log(`📂 Pasta "Backups" criada em: ${backupsFolder}`);
+    }
 
-export async function uploadToOneDrive(filename, fileStream) {
-    const accessToken = await getAccessToken();
-
-    const client = Client.init({
-        authProvider: (done) => {
-            done(null, accessToken);
-        },
-    });
+    const destinationPath = path.join(backupsFolder, fileName);
 
     try {
-        const uploadResponse = await client
-            .api(`/me/drive/root:/${filename}:/content`)
-            .putStream(fileStream);
-
-        console.log('✅ Upload concluído:', uploadResponse.webUrl);
-        return uploadResponse.webUrl;
+        fs.writeFileSync(destinationPath, buffer);
+        console.log('✅ Backup salvo no OneDrive:', destinationPath);
+        return destinationPath;
     } catch (error) {
-        console.error('❌ Erro ao enviar para o OneDrive:', error);
+        console.error('❌ Erro ao salvar backup:', error.message);
         throw error;
     }
 }
