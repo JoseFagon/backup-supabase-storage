@@ -14,6 +14,7 @@ const supabase = createClient(
 
 const BUCKET = process.env.BUCKET_NAME;
 const RETENTION_DAYS = 30;
+const MAX_FILES = 1000;
 
 async function listAllFiles(prefix = '') {
     const files = [];
@@ -88,12 +89,17 @@ async function cleanOldFiles() {
 async function runBackup() {
     try {
         console.log(`📥 Iniciando backup do bucket '${BUCKET}'...`);
-        const files = await listAllFiles();
 
-        if (files.length === 0) {
+        const allFiles = await listAllFiles();
+        
+        if (allFiles.length === 0) {
             console.log('⚠️ Nenhum arquivo encontrado para backup');
             return;
         }
+
+        const files = allFiles.slice(0, MAX_FILES);
+
+        console.log(`📦 Backup limitado a ${files.length} arquivos`);
 
         const zipBuffer = await createZipBuffer(files);
         const backupName = `backup-${new Date().toISOString().slice(0, 10)}.zip`;
